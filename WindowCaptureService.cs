@@ -16,16 +16,31 @@ public sealed class WindowCaptureService
     [DllImport("user32.dll")]
     private static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
 
-    public bool TryGetWindowRect(string processName, out Rectangle rect)
+    private static readonly string[] DefaultProcessAliases =
+    {
+        "MuMuPlayer",
+        "MuMuPlayerGlobal",
+        "NemuPlayer",
+        "NemuPlayerShell",
+        "HD-Player"
+    };
+
+    private static readonly string[] DefaultTitleKeywords =
+    {
+        "MuMu",
+        "模拟器",
+        "Nemu"
+    };
+
+    public bool TryGetWindowRect(out Rectangle rect)
     {
         rect = Rectangle.Empty;
-        var process = Process.GetProcessesByName(processName).FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero);
-        if (process is null)
+        if (!TryResolveTargetWindow(out var hwnd, out _))
         {
             return false;
         }
 
-        if (!GetWindowRect(process.MainWindowHandle, out var nativeRect))
+        if (!GetWindowRect(hwnd, out var nativeRect))
         {
             return false;
         }
@@ -39,15 +54,45 @@ public sealed class WindowCaptureService
         return rect.Width > 0 && rect.Height > 0;
     }
 
-    public Bitmap? CaptureWindow(string processName)
+    public Bitmap? CaptureWindow()
     {
-        var process = Process.GetProcessesByName(processName).FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero);
-        if (process is null)
+        if (!TryResolveTargetWindow(out var hwnd, out _))
         {
             return null;
         }
 
-        return CaptureWindow(process.MainWindowHandle);
+        return CaptureWindow(hwnd);
+    }
+
+    public bool TryResolveTargetWindow(out IntPtr hwnd, out string matchedLabel)
+    {
+        // 1) 先按进程名别名匹配
+        foreach (var alias in DefaultProcessAliases)
+        {
+            var process = Process.GetProcessesByName(alias).FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero);
+            if (process is not null)
+            {
+                hwnd = process.MainWindowHandle;
+                matchedLabel = $"{process.ProcessName} ({process.MainWindowTitle})";
+                return true;
+            }
+        }
+
+        // 2) 回退：按窗口标题关键字匹配
+        var candidate = Process.GetProcesses()
+            .Where(p => p.MainWindowHandle != IntPtr.Zero && !string.IsNullOrWhiteSpace(p.MainWindowTitle))
+            .FirstOrDefault(p => DefaultTitleKeywords.Any(k => p.MainWindowTitle.Contains(k, StringComparison.OrdinalIgnoreCase)));
+
+        if (candidate is not null)
+        {
+            hwnd = candidate.MainWindowHandle;
+            matchedLabel = $"{candidate.ProcessName} ({candidate.MainWindowTitle})";
+            return true;
+        }
+
+        hwnd = IntPtr.Zero;
+        matchedLabel = string.Empty;
+        return false;
     }
 
     public Bitmap? CaptureWindow(IntPtr hwnd)

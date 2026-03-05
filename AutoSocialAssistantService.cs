@@ -1,4 +1,3 @@
-using System.Drawing;
 using System.Text.Json;
 
 namespace testSoulChat;
@@ -9,22 +8,23 @@ public sealed class AutoSocialAssistantService : IDisposable
     private readonly GeminiClient _geminiClient;
     private readonly RandomDelayScheduler _scheduler;
     private readonly Action<string> _log;
-    private readonly string _processName;
 
     private AssistantState _state = AssistantState.Home;
     private bool _isRunning;
 
-    public AutoSocialAssistantService(WindowCaptureService captureService, GeminiClient geminiClient, Action<string> log, string processName = "MuMuPlayer")
+    public AutoSocialAssistantService(WindowCaptureService captureService, GeminiClient geminiClient, Action<string> log)
     {
         _captureService = captureService;
         _geminiClient = geminiClient;
         _log = log;
-        _processName = processName;
         _scheduler = new RandomDelayScheduler(60_000, 300_000, OnTick);
     }
 
     public void Start()
     {
+        AppLauncher.EnsureMuMuRunning(_log);
+        AppLauncher.OpenGemini(_log);
+
         if (_isRunning)
         {
             return;
@@ -71,10 +71,10 @@ public sealed class AutoSocialAssistantService : IDisposable
 
     private async Task ExecuteCurrentStateAsync()
     {
-        using var screenshot = _captureService.CaptureWindow(_processName);
+        using var screenshot = _captureService.CaptureWindow();
         if (screenshot is null)
         {
-            _log($"未找到 {_processName} 窗口或截图失败。");
+            _log("未找到 MuMu 窗口或截图失败（已启用进程别名+标题关键字匹配）。");
             return;
         }
 
@@ -89,7 +89,7 @@ public sealed class AutoSocialAssistantService : IDisposable
 
     private async Task ExecuteCommandAsync(AiActionCommand cmd)
     {
-        if (!_captureService.TryGetWindowRect(_processName, out var rect))
+        if (!_captureService.TryGetWindowRect(out var rect))
         {
             _log("无法获取模拟器窗口坐标。操作跳过。");
             return;
