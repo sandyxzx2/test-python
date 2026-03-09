@@ -11,7 +11,7 @@ namespace testSoulChat
             var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? string.Empty;
             var geminiClient = new GeminiClient(new HttpClient(), apiKey);
             _assistantService = new AutoSocialAssistantService(new WindowCaptureService(), geminiClient, AppendLog);
-            AppendLog("程序已启动，点击“启动助手”后会自动尝试打开 MuMu 与 Gemini。");
+            AppendLog("程序已启动，点击“启动助手”后会自动尝试打开 MuMu 与 ChatGPT。");
         }
 
         private void startButton_Click(object sender, EventArgs e)

@@ -45,21 +45,21 @@ public static class AppLauncher
         return true;
     }
 
-    public static void OpenGemini(Action<string> log)
+    public static void OpenChatGpt(Action<string> log)
     {
         try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = "https://gemini.google.com/app",
+                FileName = "https://chatgpt.com/",
                 UseShellExecute = true
             });
 
-            log("已打开 Gemini 页面。");
+            log("已打开 ChatGPT 页面。");
         }
         catch (Exception ex)
         {
-            log($"打开 Gemini 失败：{ex.Message}");
+            log($"打开 ChatGPT 失败：{ex.Message}");
         }
     }
 }

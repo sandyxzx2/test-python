@@ -23,7 +23,7 @@ public sealed class AutoSocialAssistantService : IDisposable
     public void Start()
     {
         AppLauncher.EnsureMuMuRunning(_log);
-        AppLauncher.OpenGemini(_log);
+        AppLauncher.OpenChatGpt(_log);
 
         if (_isRunning)
         {
