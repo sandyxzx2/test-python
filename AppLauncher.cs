@@ -6,6 +6,8 @@ public static class AppLauncher
 {
     private static readonly string[] MuMuDefaultPaths =
     {
+        @"D:\\Program Files\\Netease\\MuMuPlayer\\nx_main\\MuMuNxMain.exe",
+        @"C:\\Program Files\\Netease\\MuMuPlayer\\nx_main\\MuMuNxMain.exe",
         @"C:\\Program Files\\Netease\\MuMuPlayer-12.0\\shell\\MuMuPlayer.exe",
         @"C:\\Program Files\\Netease\\MuMuPlayerGlobal-12.0\\shell\\MuMuPlayer.exe",
         @"D:\\Program Files\\Netease\\MuMuPlayer-12.0\\shell\\MuMuPlayer.exe"
@@ -31,7 +33,7 @@ public static class AppLauncher
         var exe = candidates.FirstOrDefault(File.Exists);
         if (string.IsNullOrWhiteSpace(exe))
         {
-            log("未找到 MuMu 可执行文件。请设置环境变量 MUMU_EXE_PATH。\n例如：MUMU_EXE_PATH=C:\\Program Files\\Netease\\MuMuPlayer-12.0\\shell\\MuMuPlayer.exe");
+            log("未找到 MuMu 可执行文件。请设置环境变量 MUMU_EXE_PATH。\n例如：MUMU_EXE_PATH=D:\\Program Files\\Netease\\MuMuPlayer\\nx_main\\MuMuNxMain.exe");
             return false;
         }
 

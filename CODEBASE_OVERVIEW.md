@@ -53,7 +53,7 @@
 
 ## 8. 关键环境变量
 - `GEMINI_API_KEY`：Gemini API 访问密钥（必需）。
-- `MUMU_EXE_PATH`：MuMu 可执行文件路径（可选，默认路径找不到时建议配置）。
+- `MUMU_EXE_PATH`：MuMu 可执行文件路径（可选，默认路径找不到时建议配置，例如 `D:\\Program Files\\Netease\\MuMuPlayer\\nx_main\\MuMuNxMain.exe`）。
 
 ## 9. 当前代码可改进点（建议）
 1. **容错**：Gemini 返回非 JSON 时目前直接 `noop`，可增加重试/回退策略。
