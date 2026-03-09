@@ -39,7 +39,7 @@
             startButton.Name = "startButton";
             startButton.Size = new Size(110, 34);
             startButton.TabIndex = 0;
-            startButton.Text = "启动助手";
+            startButton.Text = "启动助手1";
             startButton.UseVisualStyleBackColor = true;
             startButton.Click += startButton_Click;
             // 
