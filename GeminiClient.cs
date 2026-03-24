@@ -9,6 +9,8 @@ public sealed class GeminiClient
     private readonly string _apiKey;
     private readonly string _model;
 
+    public bool HasApiKey => !string.IsNullOrWhiteSpace(_apiKey);
+
     public GeminiClient(HttpClient httpClient, string apiKey, string model = "gemini-1.5-flash")
     {
         _httpClient = httpClient;

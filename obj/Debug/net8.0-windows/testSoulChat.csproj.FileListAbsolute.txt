@@ -15,7 +15,6 @@ D:\java\test-python\testSoulChat\obj\Debug\net8.0-windows\refint\testSoulChat.dl
 D:\java\test-python\testSoulChat\obj\Debug\net8.0-windows\testSoulChat.pdb
 D:\java\test-python\testSoulChat\obj\Debug\net8.0-windows\testSoulChat.genruntimeconfig.cache
 D:\java\test-python\testSoulChat\obj\Debug\net8.0-windows\ref\testSoulChat.dll
-D:\java\test-python\bin\Debug\net8.0-windows\testSoulChat.exe
 D:\java\test-python\bin\Debug\net8.0-windows\testSoulChat.deps.json
 D:\java\test-python\bin\Debug\net8.0-windows\testSoulChat.runtimeconfig.json
 D:\java\test-python\bin\Debug\net8.0-windows\testSoulChat.dll
@@ -32,3 +31,4 @@ D:\java\test-python\obj\Debug\net8.0-windows\refint\testSoulChat.dll
 D:\java\test-python\obj\Debug\net8.0-windows\testSoulChat.pdb
 D:\java\test-python\obj\Debug\net8.0-windows\testSoulChat.genruntimeconfig.cache
 D:\java\test-python\obj\Debug\net8.0-windows\ref\testSoulChat.dll
+D:\java\test-python\bin\Debug\net8.0-windows\testSoulChat.exe

@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("testSoulChat")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+70e2ca284a4ceac25bf0d360db515af8f7755a45")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8f8bc443bea86b724c2237aeee28162a6aed2511")]
 [assembly: System.Reflection.AssemblyProductAttribute("testSoulChat")]
 [assembly: System.Reflection.AssemblyTitleAttribute("testSoulChat")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

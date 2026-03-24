@@ -73,6 +73,7 @@
             Controls.Add(startButton);
             Name = "Form1";
             Text = "自动社交助手";
+            Load += Form1_Load;
             ResumeLayout(false);
             PerformLayout();
         }

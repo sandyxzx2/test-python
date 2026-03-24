@@ -40,5 +40,10 @@ namespace testSoulChat
             _assistantService.Dispose();
             base.OnFormClosed(e);
         }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
     }
 }

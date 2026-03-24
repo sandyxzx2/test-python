@@ -17,6 +17,7 @@ public static class InputSimulator
     private const uint InputKeyboard = 1;
     private const uint MouseeventfLeftdown = 0x0002;
     private const uint MouseeventfLeftup = 0x0004;
+    private const uint MouseeventfWheel = 0x0800;
     private const uint KeyeventfKeyup = 0x0002;
 
     public static void LeftClick(int x, int y)
@@ -43,6 +44,52 @@ public static class InputSimulator
         };
 
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
+    public static void ScrollVertical(int delta)
+    {
+        var inputs = new[]
+        {
+            new INPUT
+            {
+                type = InputMouse,
+                U = new InputUnion
+                {
+                    mi = new MOUSEINPUT
+                    {
+                        dwFlags = MouseeventfWheel,
+                        mouseData = unchecked((uint)delta)
+                    }
+                }
+            }
+        };
+
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
+    public static void PressEnter() => PressKey(0x0D);
+
+    public static void PasteClipboard() => PressHotkey(0x11, 0x56);
+
+    public static void PressHotkey(params ushort[] keys)
+    {
+        if (keys.Length == 0)
+        {
+            return;
+        }
+
+        var inputs = new List<INPUT>(keys.Length * 2);
+        foreach (var key in keys)
+        {
+            inputs.Add(KeyDown(key));
+        }
+
+        for (var i = keys.Length - 1; i >= 0; i--)
+        {
+            inputs.Add(KeyUp(keys[i]));
+        }
+
+        SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
     }
 
     public static void TypeText(string text)
@@ -74,6 +121,17 @@ public static class InputSimulator
 
             SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
         }
+    }
+
+    private static void PressKey(ushort vk)
+    {
+        var inputs = new[]
+        {
+            KeyDown(vk),
+            KeyUp(vk)
+        };
+
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
     }
 
     private static INPUT KeyDown(ushort vk) => new()
