@@ -1,13 +1,20 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using System.Text.Json;
 
 namespace testSoulChat;
 
 public sealed class AutoSocialAssistantService : IDisposable
 {
-    private const double StartMatchX = 0.16;
-    private const double StartMatchY = 0.36;
+    private const double StartMatchX = 0.15;
+    private const double StartMatchY = 0.355;
+    private const double ChatInputX = 0.50;
+    private const double ChatInputY = 0.88;
+    private const double HomeTabX = 0.07;
+    private const double HomeTabY = 0.95;
+    private const double MatchCardX = 0.18;
+    private const double MatchCardY = 0.28;
     private const double AvatarX = 0.22;
     private const double AvatarY = 0.18;
     private const double ViewProfileX = 0.92;
@@ -62,8 +69,8 @@ public sealed class AutoSocialAssistantService : IDisposable
 
             if (!_geminiClient.HasApiKey)
             {
-                await GenerateDraftWithChatGptAsync();
-                _log("已把资料提交给 ChatGPT 生成待发送内容。");
+                await RunSoulMatchAndSendGreetingAsync();
+                _log("未配置 GEMINI_API_KEY，已完成固定流程：匹配并发送“你好”。");
                 return;
             }
 
@@ -214,6 +221,38 @@ public sealed class AutoSocialAssistantService : IDisposable
         _log("已提交给 ChatGPT 生成有趣版待发送内容。");
     }
 
+    private async Task RunSoulMatchAndSendGreetingAsync()
+    {
+        _log("开始执行 Soul 固定流程。");
+        AppLauncher.FocusAndroidEmulator(_log);
+        await Task.Delay(900);
+
+        ClickMuMuRelative(
+            ReadDoubleFromEnvironment("SOUL_HOME_TAB_X", HomeTabX),
+            ReadDoubleFromEnvironment("SOUL_HOME_TAB_Y", HomeTabY),
+            "星球首页");
+        await Task.Delay(350);
+
+        ClickMuMuRelative(
+            ReadDoubleFromEnvironment("SOUL_MATCH_CARD_X", MatchCardX),
+            ReadDoubleFromEnvironment("SOUL_MATCH_CARD_Y", MatchCardY),
+            "灵魂匹配卡片");
+        await Task.Delay(300);
+
+        ClickStartMatchWithFallbacks();
+        var waitMs = ReadIntFromEnvironment("SOUL_MATCH_WAIT_MS", 18_000);
+        _log($"正在等待匹配结果，预计等待 {waitMs / 1000.0:F1} 秒。");
+        await Task.Delay(waitMs);
+
+        ClickChatInputWithFallbacks();
+        await Task.Delay(300);
+        InputSimulator.TypeText("你好");
+        _log("已输入：你好");
+        await Task.Delay(200);
+        InputSimulator.PressEnter();
+        _log("已发送：你好");
+    }
+
     private Bitmap CaptureSoulScreenOrThrow()
     {
         using var screenshot = _captureService.CaptureWindow();
@@ -343,6 +382,67 @@ public sealed class AutoSocialAssistantService : IDisposable
     {
         var bounds = Screen.PrimaryScreen?.Bounds ?? SystemInformation.VirtualScreen;
         return new Rectangle(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+    }
+
+    private static int ReadIntFromEnvironment(string key, int fallback)
+    {
+        var raw = Environment.GetEnvironmentVariable(key);
+        return int.TryParse(raw, out var value) && value > 0 ? value : fallback;
+    }
+
+    private static double ReadDoubleFromEnvironment(string key, double fallback)
+    {
+        var raw = Environment.GetEnvironmentVariable(key);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return fallback;
+        }
+
+        if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+        {
+            return fallback;
+        }
+
+        return Math.Clamp(value, 0, 1);
+    }
+
+    private void ClickStartMatchWithFallbacks()
+    {
+        var primaryX = ReadDoubleFromEnvironment("SOUL_START_MATCH_X", StartMatchX);
+        var primaryY = ReadDoubleFromEnvironment("SOUL_START_MATCH_Y", StartMatchY);
+
+        var points = new (double X, double Y, string Label)[]
+        {
+            (primaryX, primaryY, "开始匹配(主点)"),
+            (0.14, 0.355, "开始匹配(兜底1)"),
+            (0.18, 0.355, "开始匹配(兜底2)"),
+            (0.16, 0.335, "开始匹配(兜底3)")
+        };
+
+        foreach (var point in points)
+        {
+            ClickMuMuRelative(point.X, point.Y, point.Label);
+            Thread.Sleep(200);
+        }
+    }
+
+    private void ClickChatInputWithFallbacks()
+    {
+        var primaryX = ReadDoubleFromEnvironment("SOUL_CHAT_INPUT_X", ChatInputX);
+        var primaryY = ReadDoubleFromEnvironment("SOUL_CHAT_INPUT_Y", ChatInputY);
+
+        var points = new (double X, double Y, string Label)[]
+        {
+            (primaryX, primaryY, "聊天输入框(主点)"),
+            (0.50, 0.86, "聊天输入框(兜底1)"),
+            (0.50, 0.90, "聊天输入框(兜底2)")
+        };
+
+        foreach (var point in points)
+        {
+            ClickMuMuRelative(point.X, point.Y, point.Label);
+            Thread.Sleep(180);
+        }
     }
 
     private static AssistantState NextState(AssistantState state) => state switch

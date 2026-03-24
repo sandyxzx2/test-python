@@ -29,7 +29,9 @@ public sealed class WindowCaptureService
     {
         "MuMu",
         "模拟器",
-        "Nemu"
+        "Nemu",
+        "MuMu Android Device",
+        "Android Device"
     };
 
     public bool TryGetWindowRect(out Rectangle rect)
@@ -66,33 +68,51 @@ public sealed class WindowCaptureService
 
     public bool TryResolveTargetWindow(out IntPtr hwnd, out string matchedLabel)
     {
-        // 1) 先按进程名别名匹配
-        foreach (var alias in DefaultProcessAliases)
-        {
-            var process = Process.GetProcessesByName(alias).FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero);
-            if (process is not null)
+        var windows = Process.GetProcesses()
+            .Where(p => p.MainWindowHandle != IntPtr.Zero)
+            .Select(p => new
             {
-                hwnd = process.MainWindowHandle;
-                matchedLabel = $"{process.ProcessName} ({process.MainWindowTitle})";
-                return true;
-            }
-        }
+                Process = p,
+                IsAliasMatch = DefaultProcessAliases.Any(alias =>
+                    p.ProcessName.Contains(alias, StringComparison.OrdinalIgnoreCase)),
+                IsTitleMatch = !string.IsNullOrWhiteSpace(p.MainWindowTitle) &&
+                               DefaultTitleKeywords.Any(keyword =>
+                                   p.MainWindowTitle.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            })
+            .Where(x => x.IsAliasMatch || x.IsTitleMatch)
+            .Select(x => new
+            {
+                x.Process,
+                Priority = x.IsAliasMatch ? 0 : 1,
+                Left = TryGetWindowLeft(x.Process.MainWindowHandle, out var left) ? left : int.MinValue
+            })
+            .Where(x => x.Left != int.MinValue)
+            .OrderBy(x => x.Priority)
+            .ThenByDescending(x => x.Left)
+            .FirstOrDefault();
 
-        // 2) 回退：按窗口标题关键字匹配
-        var candidate = Process.GetProcesses()
-            .Where(p => p.MainWindowHandle != IntPtr.Zero && !string.IsNullOrWhiteSpace(p.MainWindowTitle))
-            .FirstOrDefault(p => DefaultTitleKeywords.Any(k => p.MainWindowTitle.Contains(k, StringComparison.OrdinalIgnoreCase)));
-
-        if (candidate is not null)
+        if (windows is not null)
         {
-            hwnd = candidate.MainWindowHandle;
-            matchedLabel = $"{candidate.ProcessName} ({candidate.MainWindowTitle})";
+            hwnd = windows.Process.MainWindowHandle;
+            matchedLabel = $"{windows.Process.ProcessName} ({windows.Process.MainWindowTitle})";
             return true;
         }
 
         hwnd = IntPtr.Zero;
         matchedLabel = string.Empty;
         return false;
+    }
+
+    private static bool TryGetWindowLeft(IntPtr hwnd, out int left)
+    {
+        left = 0;
+        if (hwnd == IntPtr.Zero || !GetWindowRect(hwnd, out var rect))
+        {
+            return false;
+        }
+
+        left = rect.Left;
+        return true;
     }
 
     public Bitmap? CaptureWindow(IntPtr hwnd)
