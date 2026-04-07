@@ -9,6 +9,8 @@ public sealed class AutoSocialAssistantService : IDisposable
 {
     private const double StartMatchX = 0.15;
     private const double StartMatchY = 0.355;
+    private const double ProfileEntryX = 0.13;
+    private const double ProfileEntryY = 0.22;
     private const double ChatInputX = 0.50;
     private const double ChatInputY = 0.88;
     private const double HomeTabX = 0.07;
@@ -69,8 +71,8 @@ public sealed class AutoSocialAssistantService : IDisposable
 
             if (!_geminiClient.HasApiKey)
             {
-                await RunSoulMatchAndSendGreetingAsync();
-                _log("未配置 GEMINI_API_KEY，已完成固定流程：匹配并发送“你好”。");
+                await RunSoulMatchAndDraftReplyWithChatGptAsync();
+                _log("未配置 GEMINI_API_KEY，已完成固定流程：匹配后采集主页并提交给 ChatGPT 生成回复建议。");
                 return;
             }
 
@@ -98,6 +100,7 @@ public sealed class AutoSocialAssistantService : IDisposable
 
         try
         {
+            EnsureEmulatorForeground(useTaskbarFallback: true, logSuccess: false);
             await ExecuteCurrentStateAsync();
             _state = NextState(_state);
         }
@@ -160,8 +163,8 @@ public sealed class AutoSocialAssistantService : IDisposable
     private async Task GenerateDraftWithChatGptAsync()
     {
         _log("开始采集 Soul 主页资料。");
-        AppLauncher.FocusAndroidEmulator(_log);
-        await Task.Delay(900);
+        EnsureEmulatorForeground(useTaskbarFallback: true, logSuccess: true);
+        await Task.Delay(450);
         await OpenSoulProfileAsync();
 
         using var topScreenshot = CaptureSoulScreenOrThrow();
@@ -193,13 +196,14 @@ public sealed class AutoSocialAssistantService : IDisposable
 
     private async Task SubmitProfileToChatGptAsync(IReadOnlyList<Bitmap> screenshots)
     {
+        AppLauncher.FocusChatGptComposer(_log);
+        await Task.Delay(260);
+
         foreach (var screenshot in screenshots)
         {
             ClipboardHelper.SetImage(screenshot);
-            AppLauncher.FocusChatGptComposer(_log);
-            await Task.Delay(250);
             InputSimulator.PasteClipboard();
-            await Task.Delay(1400);
+            await Task.Delay(1500);
         }
 
         var prompt = """
@@ -211,21 +215,52 @@ public sealed class AutoSocialAssistantService : IDisposable
 4. 像真人聊天，不要像模板，不要分点。
 5. 只输出最终一句可直接发送的话，不要解释。
 """;
-
-        ClipboardHelper.SetText(prompt);
-        AppLauncher.FocusChatGptComposer(_log);
-        await Task.Delay(250);
-        InputSimulator.PasteClipboard();
-        await Task.Delay(250);
-        InputSimulator.PressEnter();
+        await PastePromptAndSendToChatGptAsync(prompt);
         _log("已提交给 ChatGPT 生成有趣版待发送内容。");
     }
 
-    private async Task RunSoulMatchAndSendGreetingAsync()
+    private async Task SubmitProfileToChatGptForReplyAsync(IReadOnlyList<Bitmap> screenshots)
+    {
+        AppLauncher.FocusChatGptComposer(_log);
+        await Task.Delay(260);
+
+        foreach (var screenshot in screenshots)
+        {
+            ClipboardHelper.SetImage(screenshot);
+            InputSimulator.PasteClipboard();
+            await Task.Delay(1500);
+        }
+
+        var prompt = """
+根据我刚刚粘贴的 Soul 用户主页连续截图，给我一条现在就能发的回复建议。
+要求：
+1. 结合主页里的具体细节，不要空泛。
+2. 语气自然礼貌，不油腻，不说教。
+3. 长度控制在 20 到 40 个中文字符。
+4. 只输出最终这一句，不要解释。
+""";
+        await PastePromptAndSendToChatGptAsync(prompt);
+    }
+
+    private async Task PastePromptAndSendToChatGptAsync(string prompt)
+    {
+        ClipboardHelper.SetText(prompt);
+        AppLauncher.FocusChatGptComposer(_log);
+        await Task.Delay(260);
+
+        InputSimulator.PasteClipboard();
+        var uploadWaitMs = ReadIntFromEnvironment("CHATGPT_UPLOAD_WAIT_MS", 15_000);
+        _log($"等待 ChatGPT 上传图片完成（{uploadWaitMs / 1000.0:F1} 秒）...");
+        await Task.Delay(uploadWaitMs);
+        InputSimulator.PressEnter();
+        await Task.Delay(300);
+    }
+
+    private async Task RunSoulMatchAndDraftReplyWithChatGptAsync()
     {
         _log("开始执行 Soul 固定流程。");
-        AppLauncher.FocusAndroidEmulator(_log);
-        await Task.Delay(900);
+        EnsureEmulatorForeground(useTaskbarFallback: true, logSuccess: true);
+        await Task.Delay(450);
 
         ClickMuMuRelative(
             ReadDoubleFromEnvironment("SOUL_HOME_TAB_X", HomeTabX),
@@ -244,13 +279,22 @@ public sealed class AutoSocialAssistantService : IDisposable
         _log($"正在等待匹配结果，预计等待 {waitMs / 1000.0:F1} 秒。");
         await Task.Delay(waitMs);
 
-        ClickChatInputWithFallbacks();
-        await Task.Delay(300);
-        InputSimulator.TypeText("你好");
-        _log("已输入：你好");
-        await Task.Delay(200);
-        InputSimulator.PressEnter();
-        _log("已发送：你好");
+        ClickProfileEntryAndWaitForLoad();
+
+        var profileScreenshots = await CaptureProfileTimelineAsync();
+        try
+        {
+            _log("开始提交主页截图给 ChatGPT。");
+            await SubmitProfileToChatGptForReplyAsync(profileScreenshots);
+            _log("已提交给 ChatGPT 生成回复建议。");
+        }
+        finally
+        {
+            foreach (var screenshot in profileScreenshots)
+            {
+                screenshot.Dispose();
+            }
+        }
     }
 
     private Bitmap CaptureSoulScreenOrThrow()
@@ -266,6 +310,8 @@ public sealed class AutoSocialAssistantService : IDisposable
 
     private void ClickMuMuRelative(double x, double y, string actionLabel)
     {
+        EnsureEmulatorForeground(useTaskbarFallback: false, logSuccess: false);
+
         if (!_captureService.TryGetWindowRect(out var rect))
         {
             throw new InvalidOperationException("无法获取 MuMu 窗口坐标。");
@@ -278,6 +324,8 @@ public sealed class AutoSocialAssistantService : IDisposable
 
     private void ScrollSoulProfile(int delta, string actionLabel)
     {
+        EnsureEmulatorForeground(useTaskbarFallback: false, logSuccess: false);
+
         if (!_captureService.TryGetWindowRect(out var rect))
         {
             throw new InvalidOperationException("无法获取 MuMu 窗口坐标。");
@@ -288,6 +336,55 @@ public sealed class AutoSocialAssistantService : IDisposable
         Thread.Sleep(150);
         InputSimulator.ScrollVertical(delta);
         _log($"已执行{actionLabel}。");
+    }
+
+    private void ClickProfileEntryAndWaitForLoad()
+    {
+        var x = ReadDoubleFromEnvironment("SOUL_PROFILE_ENTRY_X", ProfileEntryX);
+        var y = ReadDoubleFromEnvironment("SOUL_PROFILE_ENTRY_Y", ProfileEntryY);
+        ClickMuMuRelative(x, y, "主页入口(头像)");
+
+        var waitMs = ReadIntFromEnvironment("SOUL_PROFILE_LOAD_WAIT_MS", 3_500);
+        _log($"已点击主页入口，等待加载 {waitMs / 1000.0:F1} 秒。");
+        Thread.Sleep(waitMs);
+    }
+
+    private async Task<List<Bitmap>> CaptureProfileTimelineAsync()
+    {
+        var maxShots = Math.Clamp(ReadIntFromEnvironment("SOUL_PROFILE_SHOT_COUNT", 5), 2, 8);
+        var scrollDelta = -Math.Abs(ReadIntFromEnvironment("SOUL_PROFILE_SCROLL_DELTA", 720));
+        var scrollDelayMs = ReadIntFromEnvironment("SOUL_PROFILE_SCROLL_DELAY_MS", 1_250);
+        var duplicateThreshold = Math.Clamp(ReadIntFromEnvironment("SOUL_PROFILE_DUPLICATE_THRESHOLD", 6), 1, 20);
+
+        var screenshots = new List<Bitmap>(maxShots);
+        var hashes = new List<ulong>(maxShots);
+
+        for (var i = 0; i < maxShots; i++)
+        {
+            var screenshot = CaptureSoulScreenOrThrow();
+            var hash = ComputeAverageHash(screenshot);
+
+            if (hashes.Count > 0 && HammingDistance(hash, hashes[^1]) <= duplicateThreshold)
+            {
+                screenshot.Dispose();
+                _log("检测到滚动后画面重复，提前结束主页截图。");
+                break;
+            }
+
+            screenshots.Add(screenshot);
+            hashes.Add(hash);
+            _log($"主页截图进度：{screenshots.Count}/{maxShots}");
+
+            if (i == maxShots - 1)
+            {
+                break;
+            }
+
+            ScrollSoulProfile(scrollDelta, $"主页滚动({screenshots.Count})");
+            await Task.Delay(scrollDelayMs);
+        }
+
+        return screenshots;
     }
 
     private static Bitmap ScaleBitmap(Bitmap source, double scale)
@@ -390,6 +487,27 @@ public sealed class AutoSocialAssistantService : IDisposable
         return int.TryParse(raw, out var value) && value > 0 ? value : fallback;
     }
 
+    private void EnsureEmulatorForeground(bool useTaskbarFallback, bool logSuccess)
+    {
+        if (_captureService.TryBringTargetWindowToFront(out var matchedLabel))
+        {
+            if (logSuccess && !string.IsNullOrWhiteSpace(matchedLabel))
+            {
+                _log($"已通过句柄激活模拟器窗口：{matchedLabel}");
+            }
+
+            return;
+        }
+
+        if (!useTaskbarFallback)
+        {
+            return;
+        }
+
+        _log("句柄激活模拟器失败，尝试任务栏兜底激活。");
+        AppLauncher.FocusAndroidEmulator(_log);
+    }
+
     private static double ReadDoubleFromEnvironment(string key, double fallback)
     {
         var raw = Environment.GetEnvironmentVariable(key);
@@ -406,8 +524,62 @@ public sealed class AutoSocialAssistantService : IDisposable
         return Math.Clamp(value, 0, 1);
     }
 
+    private static ulong ComputeAverageHash(Bitmap source)
+    {
+        using var resized = new Bitmap(8, 8);
+        using (var g = Graphics.FromImage(resized))
+        {
+            g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.DrawImage(source, new Rectangle(0, 0, 8, 8));
+        }
+
+        var luminance = new int[64];
+        var sum = 0;
+        var index = 0;
+
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                var pixel = resized.GetPixel(x, y);
+                var value = (pixel.R * 299 + pixel.G * 587 + pixel.B * 114) / 1000;
+                luminance[index++] = value;
+                sum += value;
+            }
+        }
+
+        var average = sum / 64;
+        ulong hash = 0;
+        for (var i = 0; i < luminance.Length; i++)
+        {
+            if (luminance[i] >= average)
+            {
+                hash |= 1UL << i;
+            }
+        }
+
+        return hash;
+    }
+
+    private static int HammingDistance(ulong a, ulong b)
+    {
+        var value = a ^ b;
+        var count = 0;
+        while (value != 0)
+        {
+            value &= value - 1;
+            count++;
+        }
+
+        return count;
+    }
+
     private void ClickStartMatchWithFallbacks()
     {
+        ClickStartMatchByWindowOriginAndResolution();
+        Thread.Sleep(220);
+
         var primaryX = ReadDoubleFromEnvironment("SOUL_START_MATCH_X", StartMatchX);
         var primaryY = ReadDoubleFromEnvironment("SOUL_START_MATCH_Y", StartMatchY);
 
@@ -424,6 +596,30 @@ public sealed class AutoSocialAssistantService : IDisposable
             ClickMuMuRelative(point.X, point.Y, point.Label);
             Thread.Sleep(200);
         }
+    }
+
+    private void ClickStartMatchByWindowOriginAndResolution()
+    {
+        if (!_captureService.TryGetWindowRect(out var rect))
+        {
+            throw new InvalidOperationException("无法获取 MuMu 窗口坐标。");
+        }
+
+        var screen = Screen.PrimaryScreen?.Bounds ?? SystemInformation.VirtualScreen;
+        var referenceWidth = ReadIntFromEnvironment("SOUL_REF_SCREEN_WIDTH", 2560);
+        var referenceHeight = ReadIntFromEnvironment("SOUL_REF_SCREEN_HEIGHT", 1440);
+
+        var baseOffsetX = ReadIntFromEnvironment("SOUL_START_MATCH_OFFSET_X", 88);
+        var baseOffsetY = ReadIntFromEnvironment("SOUL_START_MATCH_OFFSET_Y", 322);
+
+        var scaleX = screen.Width / (double)Math.Max(1, referenceWidth);
+        var scaleY = screen.Height / (double)Math.Max(1, referenceHeight);
+
+        var targetX = rect.Left + (int)Math.Round(baseOffsetX * scaleX);
+        var targetY = rect.Top + (int)Math.Round(baseOffsetY * scaleY);
+
+        InputSimulator.LeftClick(targetX, targetY);
+        _log($"已点击开始匹配(句柄+分辨率)：({targetX},{targetY})");
     }
 
     private void ClickChatInputWithFallbacks()
